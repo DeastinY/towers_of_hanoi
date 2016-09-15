@@ -18,7 +18,55 @@ Addition:
     k != i and k != j. The probability of this mistake is 10 %.
 
 MDP:
+    The general idea of a MDP is, that you model a problem using states and actions. Actions can move the agent from
+    one state to another. With every action a probability is associated that the action actually yields the desired result.
+    Furthermore a reward is defined for every transition from one state to another. To work with possible future state a
+    discount factor is implemented, that states how important "future rewards" are compared to current rewards.
+
     The discount factor of future rewards is 0.9
     The problem will be solved using both Value Iteration and Policy Iteration.
 """
 
+from copy import deepcopy
+
+
+class MDP:
+    def __init__(self, states, actions, transaction_model, reward_function, initial_state):
+        self.states = states
+        self.actions = actions
+        self.transaction_model = transaction_model
+        self.reward_function = reward_function
+        self.initial_state = initial_state
+
+
+def gen_moves(s):
+    moves = []
+    for idx_out, pin in enumerate(hanoi):
+        for idx, move_to in enumerate(hanoi):
+            if pin != move_to and len(pin) != 0:
+                new_move = deepcopy(hanoi)
+                del new_move[idx_out][-1]
+                new_move[idx].append(pin[-1])
+                moves.append(new_move)
+    return moves
+
+
+def reward(state):
+    for pin in state:
+        if not all(state[i] >= state[i+1] for i in range(len(pin)-1)):
+            return -10
+    else:
+        if state[-1] == [2, 1]:  # bad hardcoded win condition, fix later (adjust field size)
+            return 100
+        else:
+            return -1
+
+
+hanoi = [[2, 1], [], []]  # List represents the pins. For every pin we keep a list of disk-sizes (last is top)
+print(hanoi)
+[print("{} : {}".format(p, reward(p))) for p in gen_moves(hanoi)]
+states = [
+    [[2, 1],]
+]
+
+mdp = MDP(states, actions, transaction_model, reward, hanoi)
