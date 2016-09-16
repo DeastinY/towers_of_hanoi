@@ -26,13 +26,16 @@ MDP:
     The discount factor of future rewards is 0.9
     The problem will be solved using both Value Iteration and Policy Iteration.
 """
+import sys
 import logging
 from copy import deepcopy
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 
 def gen_actions(state, disk=None):
+    if state[-1] == [2, 1]:
+        return []
     moves = []
     for idx_out, pin in enumerate(state):
         for idx, move_to in enumerate(state):
@@ -64,6 +67,8 @@ def r(state, action):
 
 
 def t(state, action):
+    if state[-1] == [2, 1]:
+        return []
     disk = get_disk(state, action)
     transitions = []
     actions = gen_actions(state, disk)
@@ -72,6 +77,20 @@ def t(state, action):
         transitions.append((g_a, p))
     return transitions
 
+
+def u(state, updated_utility=None):
+    global best_utility
+    for us in best_utility:
+        if state in us:
+            us[1] = updated_utility if updated_utility is not None else us[1]
+            return us[1]
+    else:
+        initial_utility = 0
+        best_utility.append([state, initial_utility])
+        return initial_utility
+
+
+best_utility = []
 
 # generate all states - by hand, because life sucks and then you die
 states = [
@@ -87,15 +106,40 @@ states = [
     [[2], [], [1]],
 ]
 
-for s in states:
-    possible_actions = gen_actions(s)
-    for a in possible_actions:
-        possible_transitions = t(s, a)
-        reward = sum([t[1] * r(s, t[0]) for t in possible_transitions])
-        utility = reward + 0
 
-        logging.info("Investigating state {} and action {}".format(s, a))
-        [logging.debug("p: {}\t r: {}\t s': {}\t".format(t[1], r(s, t[0]), t[0])) for t in possible_transitions]
-        logging.info("Utility for action : {}".format(reward))
-        logging.info("Reward for action : {}".format(reward))
+def value_iteration(epsilon):
+    iterations = 0
+    while True:
+        iterations += 1
+        states_delta = []
+        for s in states:
+            possible_actions = gen_actions(s)
+            if len(possible_actions) == 0:
+                continue  # skip terminal states
+            state_utilities = []
+            state_moves = []
+            for a in possible_actions:
+                possible_transitions = t(s, a)
+                reward = sum([tr[1] * r(s, tr[0]) for tr in possible_transitions])
+                utility = reward + 0.9 * sum([tr[1] * u(tr[0]) for tr in possible_transitions])
+                state_utilities.append(utility)
+                state_moves.append(a)
+                logging.info("Investigating state {} and action {}".format(s, a))
+                [logging.debug("p: {}\t r: {}\t s': {}\t".format(
+                    tr[1], r(s, tr[0]), tr[0])) for tr in possible_transitions]
+                logging.debug("Reward for action : {}".format(reward))
+                logging.debug("Utility for action : {}".format(utility))
+
+            idx = state_utilities.index(max(state_utilities))
+            old = u(s)
+            new = state_utilities[idx]
+            u(s, new)
+            logging.info("Updated utility {} to {} for {}".format(old, new, s))
+            logging.info("Current best move for this state is {}".format(state_moves[idx]))
+            states_delta.append(abs(old-new))
+        if all([d < epsilon for d in states_delta]):
+            logging.info("Finished after {} iterations!".format(iterations))
+            return
+
+value_iteration(0.000001)
 
