@@ -26,7 +26,10 @@ MDP:
     The discount factor of future rewards is 0.9
     The problem will be solved using both Value Iteration and Policy Iteration.
 """
+import logging
 from copy import deepcopy
+
+logging.basicConfig(level=logging.DEBUG)
 
 
 def gen_actions(state, disk=None):
@@ -45,7 +48,7 @@ def get_disk(state, action):
     for i in range(len(state)):
         if state[i] != action[i]:
             d = set(state[i]).symmetric_difference(set(action[i]))
-            print("Moving disk {}".format(d))
+            logging.debug("Moving disk {}".format(d))
             return d.pop()
 
 
@@ -87,12 +90,12 @@ states = [
 for s in states:
     possible_actions = gen_actions(s)
     for a in possible_actions:
-        print("Investigating state {} and action {}".format(s, a))
         possible_transitions = t(s, a)
-        print("Transitions :")
-        [print("Endstate : {} Probability : {} Reward : {}".format(t[0], t[1], r(s, t[0]))) for t in possible_transitions]
-        reward = 0.9 * r(s, a) + sum([t[1] * r(s, t[0]) for t in possible_transitions if t[0] != a])
-        print("Reward for action : {}".format(reward))
-        utility = 0
-        print("Utility for action : {}".format(reward))
+        reward = sum([t[1] * r(s, t[0]) for t in possible_transitions])
+        utility = reward + 0
+
+        logging.info("Investigating state {} and action {}".format(s, a))
+        [logging.debug("p: {}\t r: {}\t s': {}\t".format(t[1], r(s, t[0]), t[0])) for t in possible_transitions]
+        logging.info("Utility for action : {}".format(reward))
+        logging.info("Reward for action : {}".format(reward))
 
