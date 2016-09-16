@@ -26,47 +26,73 @@ MDP:
     The discount factor of future rewards is 0.9
     The problem will be solved using both Value Iteration and Policy Iteration.
 """
-
 from copy import deepcopy
 
 
-class MDP:
-    def __init__(self, states, actions, transaction_model, reward_function, initial_state):
-        self.states = states
-        self.actions = actions
-        self.transaction_model = transaction_model
-        self.reward_function = reward_function
-        self.initial_state = initial_state
-
-
-def gen_moves(s):
+def gen_actions(state, disk=None):
     moves = []
-    for idx_out, pin in enumerate(hanoi):
-        for idx, move_to in enumerate(hanoi):
-            if pin != move_to and len(pin) != 0:
-                new_move = deepcopy(hanoi)
+    for idx_out, pin in enumerate(state):
+        for idx, move_to in enumerate(state):
+            if pin != move_to and len(pin) != 0 and (disk is None or pin[-1] == disk):
+                new_move = deepcopy(state)
                 del new_move[idx_out][-1]
                 new_move[idx].append(pin[-1])
                 moves.append(new_move)
     return moves
 
 
-def reward(state):
-    for pin in state:
-        if not all(state[i] >= state[i+1] for i in range(len(pin)-1)):
+def get_disk(state, action):
+    for i in range(len(state)):
+        if state[i] != action[i]:
+            d = set(state[i]).symmetric_difference(set(action[i]))
+            print("Moving disk {}".format(d))
+            return d.pop()
+
+
+def r(state, action):
+    for pin in action:
+        if not all(pin[i] >= pin[i + 1] for i in range(len(pin) - 1)):
             return -10
     else:
-        if state[-1] == [2, 1]:  # bad hardcoded win condition, fix later (adjust field size)
+        if action[-1] == [2, 1]:  # bad hardcoded win condition, fix later (adjust field size)
             return 100
         else:
             return -1
 
 
-hanoi = [[2, 1], [], []]  # List represents the pins. For every pin we keep a list of disk-sizes (last is top)
-print(hanoi)
-[print("{} : {}".format(p, reward(p))) for p in gen_moves(hanoi)]
+def t(state, action):
+    disk = get_disk(state, action)
+    transitions = []
+    actions = gen_actions(state, disk)
+    for g_a in actions:
+        p = 0.9 if g_a == action else 0.1/(len(actions)-1)
+        transitions.append((g_a, p))
+    return transitions
+
+
+# generate all states - by hand, because life sucks and then you die
 states = [
-    [[2, 1],]
+    [[2, 1], [], []],
+    [[], [2, 1], []],
+    [[], [], [2, 1]],
+    [[1, 2], [], []],
+    [[], [1, 2], []],
+    [[], [], [1, 2]],
+    [[1], [2], []],
+    [[1], [], [2]],
+    [[2], [1], []],
+    [[2], [], [1]],
 ]
 
-mdp = MDP(states, actions, transaction_model, reward, hanoi)
+for s in states:
+    possible_actions = gen_actions(s)
+    for a in possible_actions:
+        print("Investigating state {} and action {}".format(s, a))
+        possible_transitions = t(s, a)
+        print("Transitions :")
+        [print("Endstate : {} Probability : {} Reward : {}".format(t[0], t[1], r(s, t[0]))) for t in possible_transitions]
+        reward = 0.9 * r(s, a) + sum([t[1] * r(s, t[0]) for t in possible_transitions if t[0] != a])
+        print("Reward for action : {}".format(reward))
+        utility = 0
+        print("Utility for action : {}".format(reward))
+
