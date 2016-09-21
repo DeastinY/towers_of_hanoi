@@ -26,9 +26,9 @@ MDP:
     The discount factor of future rewards is 0.9
     The problem will be solved using both Value Iteration and Policy Iteration.
 """
-import sys
 import logging
 from copy import deepcopy
+from itertools import permutations
 
 logging.basicConfig(level=logging.INFO)
 
@@ -93,18 +93,8 @@ def u(state, updated_utility=None):
 best_utility = []
 
 # generate all states - by hand, because life sucks and then you die
-states = [
-    [[2, 1], [], []],
-    [[], [2, 1], []],
-    [[], [], [2, 1]],
-    [[1, 2], [], []],
-    [[], [1, 2], []],
-    [[], [], [1, 2]],
-    [[1], [2], []],
-    [[1], [], [2]],
-    [[2], [1], []],
-    [[2], [], [1]],
-]
+states = [list(p) for p in permutations([[2, 1], [], []])] + [list(p) for p in permutations([[1, 2], [], []])] + [list(p) for p in permutations([[1], [2], []])]
+print(states)
 
 
 def value_iteration(epsilon):
@@ -112,6 +102,7 @@ def value_iteration(epsilon):
     while True:
         iterations += 1
         states_delta = []
+        states_best = []
         for s in states:
             possible_actions = gen_actions(s)
             if len(possible_actions) == 0:
@@ -131,14 +122,17 @@ def value_iteration(epsilon):
                 logging.debug("Utility for action : {}".format(utility))
 
             idx = state_utilities.index(max(state_utilities))
-            old = u(s)
             new = state_utilities[idx]
+            move = state_moves[idx]
             u(s, new)
-            logging.info("Updated utility {} to {} for {}".format(old, new, s))
-            logging.info("Current best move for this state is {}".format(state_moves[idx]))
-            states_delta.append(abs(old-new))
+            logging.info("Updated utility {} to {} for {}".format(u(s), new, s))
+            logging.info("Current best move for this state is {}".format(move))
+            states_delta.append(abs(u(s)-new))
+            states_best.append((s, move, new))
         if all([d < epsilon for d in states_delta]):
             logging.info("Finished after {} iterations!".format(iterations))
+            for b in states_best:
+                print("For state {} action {} is best with utility {}".format(*b))
             return
 
 value_iteration(0.000001)
