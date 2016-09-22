@@ -28,7 +28,7 @@ MDP:
 """
 import logging
 from copy import deepcopy
-from itertools import permutations
+import itertools
 
 logging.basicConfig(level=logging.INFO)
 
@@ -92,10 +92,19 @@ def u(state, updated_utility=None):
 
 best_utility = []
 
-# generate all states - by hand, because life sucks and then you die
-states = [list(p) for p in permutations([[2, 1], [], []])] + [list(p) for p in permutations([[1, 2], [], []])] + [list(p) for p in permutations([[1], [2], []])]
-print(states)
+def unique(iterable):
+    # http://stackoverflow.com/questions/6534430/why-does-pythons-itertools-permutations-contain-duplicates-when-the-original
+    seen = set()
+    for i in iterable:
+        if str(i) in seen:
+            continue
+        seen.add(str(i))
+        yield i
 
+# generate all states - by hand, because life sucks and then you die
+states = [i for i in unique(itertools.permutations([[2,1],[],[]]))] + \
+         [i for i in unique(itertools.permutations([[2],[1],[]]))] + \
+         [i for i in unique(itertools.permutations([[1,2],[],[]]))]
 
 def value_iteration(epsilon):
     iterations = 0
@@ -132,8 +141,8 @@ def value_iteration(epsilon):
         if all([d < epsilon for d in states_delta]):
             logging.info("Finished after {} iterations!".format(iterations))
             for b in states_best:
-                print("For state {} action {} is best with utility {}".format(*b))
+                logging.info("For state {} action {} is best with utility {}".format(*b))
             return
 
-value_iteration(0.000001)
+value_iteration(0.001)
 
