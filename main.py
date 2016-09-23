@@ -61,25 +61,13 @@ def get_disk(action):
     for i in range(len(action.InitialState)):
         if action.InitialState[i] != action.FinalState[i]:
             d = set(action.InitialState[i]).symmetric_difference(set(action.FinalState[i]))
-            logging.debug("Moving disk {}".format(d))
             return d.pop()
-
-
-def r(action):
-    for pin in action.FinalState:
-        if not all(pin[i] >= pin[i + 1] for i in range(len(pin) - 1)):
-            return -10
-    else:
-        if action.FinalState[-1] == [2, 1]:  # bad hardcoded win condition, fix later (adjust field size)
-            return 100
-        else:
-            return -1
 
 
 def t(action):
     """Returns the possible transitions trying to execute an action on a state.
     Base on the task the desired state s' has a 90% success rate. Every different state has an equal probability."""
-    if action.FinalState[-1] == [2, 1]:
+    if action.InitialState[-1] == [2, 1]:
         return []
     disk = get_disk(action)
     transitions = []
@@ -90,20 +78,40 @@ def t(action):
     return transitions
 
 
-def u(state, updated_utility=None):
+def r(action, state=None):
+    if not state is None:
+        transitions = t(action)
+        return sum([tr.Probability * r(tr.Action) for tr in transitions])
+    else:
+        for pin in action.FinalState:
+            if not all(pin[i] >= pin[i + 1] for i in range(len(pin) - 1)):
+                return -10
+        else:
+            if action.FinalState[-1] == [2, 1]:  # bad hardcoded win condition, fix later (adjust field size)
+                return 100
+            else:
+                return -1
+
+
+def u(state, swap_utility, updated_utility=None):
     """Calculates or updates the current utility for a state. If no utility is present it is initialized to 0."""
     global best_utility
-    for us in best_utility:
+    for idx, us in enumerate(best_utility):
         if state in us:
-            us[1] = updated_utility if updated_utility is not None else us[1]
+            if swap_utility:
+                best_utility_swap[idx][1] = updated_utility if updated_utility is not None else best_utility_swap[idx][1]
+            else:
+                us[1] = updated_utility if updated_utility is not None else us[1]
             return us[1]
     else:
         initial_utility = 0
         best_utility.append([state, initial_utility])
+        best_utility_swap.append([state, initial_utility])
         return initial_utility
 
 
 best_utility = []
+best_utility_swap = []
 
 def unique(iterable):
     """Used to adjust the itertool permutations method to our needs.
@@ -116,33 +124,46 @@ def unique(iterable):
         yield i
 
 
-def value_iteration(epsilon, states):
+def value_iteration(epsilon, states, swap_utility = False):
     iterations = 0
     while True:
         iterations += 1
         states_delta, states_best = [], []
         for s in states:
+            logging.warning("State : {}".format(s))
             possible_actions = gen_actions(s)
             if len(possible_actions) == 0:
                 continue  # skip terminal states
             u_a_mapping = {}
             for a in possible_actions:
-                possible_transitions = t(a)
-                utility = r(a) + 0.9 * sum([tr.Probability * u(tr.Action.FinalState) for tr in possible_transitions])
+                logging.debug("Action : {}".format(a))
+                reward = r(a, s)
+                [logging.debug("To {} Reward : {} \t Probability : {}".format(tr.Action.FinalState, r(tr.Action), tr.Probability)) for tr in t(a)]
+                utility = reward + 0.9 * sum([tr.Probability * u(tr.Action.FinalState, swap_utility) for tr in t(a)])
+                logging.debug("Reward : {} \t Utility : {}".format(reward, utility))
                 u_a_mapping[utility] = a
 
-            best_u = max(u_a_mapping, key=int)
+            best_u = max(u_a_mapping, key=float)
             best_a = u_a_mapping[best_u]
-            u(s, best_u)
-            states_delta.append(abs(u(s)-best_u))
+            u(s, swap_utility, best_u)
+            states_delta.append(abs(u(s, swap_utility)-best_u))
             states_best.append((best_a, best_u))
+            logging.debug("Best Utility : {} Action : {} ".format(best_u, best_a))
+
+        global best_utility
+        global best_utility_swap
+        if swap_utility:
+            best_utility = []
+            for i in range(len(best_utility_swap)):
+                best_utility.append(deepcopy(best_utility_swap[i]))
+
         if all([d < epsilon for d in states_delta]):
             logging.info("Finished after {} iterations!".format(iterations))
             for b in states_best:
                 logging.info("For State {} moving to State {} is best, with utility {}".format(b[0].InitialState, b[0].FinalState, b[1]))
             return
 
-def policy_iteration(epsilon, states):
+def policy_iteration(epsilon, states, swap_utility):
     pass
 
 
@@ -151,7 +172,8 @@ if __name__ == "__main__":
              [i for i in unique(itertools.permutations([[2],[1],[]]))] + \
              [i for i in unique(itertools.permutations([[1,2],[],[]]))]
 
-    value_iteration(0.000001, states)
-    policy_iteration(0.000001, states)
+    swap_utility = True  # Used to debug vs hand-calculated results. Only updates utility after one iteration
+    value_iteration(0.000001, states, swap_utility)
+    policy_iteration(0.000001, states, swap_utility)
 
 
