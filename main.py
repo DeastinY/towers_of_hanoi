@@ -30,14 +30,18 @@ Implementation:
     Take care, there are a few hickups:
         1. Actions described as an initial and final state
 """
+
 import logging
+import numpy as np
 from copy import deepcopy
 import itertools
+import random
 from collections import namedtuple
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 Action = namedtuple('Action', 'InitialState FinalState')
 Transition = namedtuple('Transition', 'Action Probability')
+Policy = namedtuple('Policy', 'State Action')
 
 
 def gen_actions(state, disk=None):
@@ -124,6 +128,14 @@ def unique(iterable):
         yield i
 
 
+def get_state_id(states, x):
+    for i, s in enumerate(states):
+        if s == x:
+            return i
+    else:
+        raise Exception("State not in States.")
+
+
 def value_iteration(epsilon, states, swap_utility = False):
     iterations = 0
     while True:
@@ -164,7 +176,35 @@ def value_iteration(epsilon, states, swap_utility = False):
             return
 
 def policy_iteration(epsilon, states, swap_utility):
-    pass
+    policy = [Policy(s, gen_actions(s)[random.randint(0,len(gen_actions(s))-1)]) for s in states if len(gen_actions(s)) != 0]
+    logging.debug("Initial Policy: {}".format(policy))
+    leq_a, leq_b = [], []
+    for s in states:
+        a = [p.Action for p in policy if p.State == s]
+        if len(a) == 0:
+            leq_a.append([0 for i in range(len(states))])
+            leq_b.append(0)  # bad hardcoded value
+            continue  # terminal state
+        a = a[0]  # there is always only one corresponding action in the policy
+        logging.info("In {} do {}".format(s, a.FinalState))
+        reward = r(a, s)
+        leq = "LEQ : {} + 0.9 * ( {} )".format(reward, ["{} * u({})".format(tr.Probability, get_state_id(states,tr.Action.FinalState)) for tr in t(a)])
+        ids = {}
+        for tr in t(a):
+            ids[get_state_id(states, tr.Action.FinalState)] = tr.Probability
+        part_leq_a = []
+        for i in range(len(states)):
+            if i in ids:
+                part_leq_a.append(0.9*ids[i])
+            else:
+                part_leq_a.append(0)
+        leq_a.append(part_leq_a)
+        leq_b.append(-reward)
+        logging.debug(leq)
+        logging.debug("\n"+str(np.array(leq_a)))
+        logging.debug("\n"+str(np.array(leq_b)))
+    utility = np.linalg.solve(np.array(leq_a), np.array(leq_b))
+    logging.info(utility)
 
 
 if __name__ == "__main__":
@@ -173,7 +213,7 @@ if __name__ == "__main__":
              [i for i in unique(itertools.permutations([[1,2],[],[]]))]
 
     swap_utility = True  # Used to debug vs hand-calculated results. Only updates utility after one iteration
-    value_iteration(0.000001, states, swap_utility)
+    #value_iteration(0.000001, states, swap_utility)
     policy_iteration(0.000001, states, swap_utility)
 
 
