@@ -47,9 +47,9 @@ Policy = namedtuple('Policy', 'State Action')
 def gen_actions(state, disk=None):
     """Generates all possible actions (=resulting states) from a base state.
     If disk is not None only action that move disk are returned."""
+    actions = [Action(state, state)]
     if state[-1] == [2, 1]:
-        return []
-    actions = []
+        return actions
     for idx_out, pin in enumerate(state):
         for idx, move_to in enumerate(state):
             if pin != move_to and len(pin) != 0 and (disk is None or pin[-1] == disk):
@@ -70,14 +70,16 @@ def get_disk(action):
 
 def t(action):
     """Returns the possible transitions trying to execute an action on a state.
-    Base on the task the desired state s' has a 90% success rate. Every different state has an equal probability."""
-    if action.InitialState[-1] == [2, 1]:
-        return []
+    The desired state s' has a 90% success rate. Every different state has an equal probability."""
+    if action.InitialState == action.FinalState:
+        return([Transition(action, 1.0)])
     disk = get_disk(action)
     transitions = []
     actions = gen_actions(action.InitialState, disk)
     for g_a in actions:
-        p = 0.9 if g_a.FinalState == action.FinalState else 0.1/(len(actions)-1)
+        if g_a.FinalState == action.FinalState: p = 0.9
+        elif g_a.FinalState == action.InitialState: p = 0.0
+        else: p = 0.1/(len(actions)-2)
         transitions.append(Transition(g_a, p))
     return transitions
 
@@ -92,7 +94,7 @@ def r(action, state=None):
                 return -10
         else:
             if action.FinalState[-1] == [2, 1]:  # bad hardcoded win condition, fix later (adjust field size)
-                return 100
+                return 100 if not action.InitialState == action.FinalState else 0
             else:
                 return -1
 
@@ -176,16 +178,11 @@ def value_iteration(epsilon, states, swap_utility = False):
             return
 
 def policy_iteration(epsilon, states, swap_utility):
-    policy = [Policy(s, gen_actions(s)[random.randint(0,len(gen_actions(s))-1)]) for s in states if len(gen_actions(s)) != 0]
+    policy = [Policy(s, gen_actions(s)[random.randint(0,len(gen_actions(s))-1)]) for s in states ]
     logging.debug("Initial Policy: {}".format(policy))
     leq_a, leq_b = [], []
     for s in states:
-        a = [p.Action for p in policy if p.State == s]
-        if len(a) == 0:
-            leq_a.append([0 for i in range(len(states))])
-            leq_b.append(0)  # bad hardcoded value
-            continue  # terminal state
-        a = a[0]  # there is always only one corresponding action in the policy
+        a = [p.Action for p in policy if p.State == s][0]  # there is always only one corresponding action in the policy
         logging.info("In {} do {}".format(s, a.FinalState))
         reward = r(a, s)
         leq = "LEQ : {} + 0.9 * ( {} )".format(reward, ["{} * u({})".format(tr.Probability, get_state_id(states,tr.Action.FinalState)) for tr in t(a)])
