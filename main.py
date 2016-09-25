@@ -224,6 +224,7 @@ def policy_iteration(e, p):
         leq_a.append(part_leq_a)
         leq_b.append(reward)
     utility = np.linalg.solve(np.array(leq_a), np.array(leq_b))
+    updated_policy = False
     for s in states:
         state_id = get_id_of_state(s)
         policy_action = p.get_action(s)
@@ -233,8 +234,9 @@ def policy_iteration(e, p):
             if (other_utility > utility[state_id]):
                 utility[state_id] = other_utility
                 p.update(s, a)
-                policy_iteration(e, p)
-                return
+                updated_policy = True
+    if updated_policy:
+        policy_iteration(e, p)
     else:
         logging.info("Finished after {} iterations !".format(iterations))
         iterations = 0
@@ -245,10 +247,10 @@ states = [i for i in unique(itertools.permutations([[2,1],[],[]]))] + \
              [i for i in unique(itertools.permutations([[2],[1],[]]))] + \
              [i for i in unique(itertools.permutations([[1,2],[],[]]))]
 
-epsilon = 0.1
-logging.info("Starting {} iteration with an epsilon of {}".format("value", epsilon))
+epsilon = 0.00001
+logging.info("Starting value iteration with an epsilon of {}".format(epsilon))
 value_iteration(epsilon)
-logging.info("Starting {} iteration with an epsilon of {}".format("policy", epsilon))
+logging.info("Starting policy iteration with")
 policy_iteration(epsilon, Policy(states))
 
 
