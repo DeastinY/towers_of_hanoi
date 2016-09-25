@@ -37,7 +37,7 @@ from copy import deepcopy
 import itertools
 from collections import namedtuple
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 Action = namedtuple('Action', 'InitialState FinalState')
 Transition = namedtuple('Transition', 'Action Probability')
 
@@ -75,7 +75,7 @@ def t(a):
 
     :param a The Action that should be executed"""
     if a.InitialState == a.FinalState:
-        return ([Transition(a, 1.0)])
+        return [Transition(a, 1.0)]
     disk = get_disk(a)
     transitions = []
     actions = gen_actions(a.InitialState, disk)
@@ -96,7 +96,7 @@ def r(a, s=None):
     :param a The Action
     :param s The State. If not None the sum of all rewards and their probabilities is returned.
     """
-    if not s is None:
+    if s is not None:
         transitions = t(a)
         return sum([tr.Probability * r(tr.Action) for tr in transitions])
     else:
@@ -154,12 +154,6 @@ def get_id_of_state(s):
         raise Exception("State not in States.")
 
 
-def get_state_by_id(id):
-    """Returns a State based on an id.
-
-    :param id The id."""
-
-
 iterations = 0
 
 
@@ -192,7 +186,7 @@ def value_iteration(e):
 
 
 class Policy:
-    def __init__(self, states):
+    def __init__(self):
         self.policy = [[s, gen_actions(s)[-1]] for s in states]
 
     def update(self, s, a):
@@ -240,13 +234,17 @@ def policy_iteration(e, p):
         for a in other_actions:
             other_utility = r(a, s) + 0.9 * sum(
                 [tr.Probability * utility[get_id_of_state(tr.Action.FinalState)] for tr in t(a)])
-            if (other_utility > utility[state_id]):
+            if other_utility > utility[state_id]:
                 utility[state_id] = other_utility
                 p.update(s, a)
                 updated_policy = True
     if updated_policy:
         policy_iteration(e, p)
     else:
+        for p in p.policy:
+            logging.debug("For State {} moving to State {} is best, with utility {}".format(p[0], p[1].FinalState,
+                                                                                            utility[get_id_of_state(
+                                                                                                p[1].FinalState)]))
         logging.info("Finished after {} iterations !".format(iterations))
         iterations = 0
 
@@ -259,4 +257,4 @@ epsilon = 0.00001
 logging.info("Starting value iteration with an epsilon of {}".format(epsilon))
 value_iteration(epsilon)
 logging.info("Starting policy iteration with")
-policy_iteration(epsilon, Policy(states))
+policy_iteration(epsilon, Policy())
