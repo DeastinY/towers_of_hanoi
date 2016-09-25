@@ -41,7 +41,6 @@ from collections import namedtuple
 logging.basicConfig(level=logging.DEBUG)
 Action = namedtuple('Action', 'InitialState FinalState')
 Transition = namedtuple('Transition', 'Action Probability')
-Policy = namedtuple('Policy', 'State Action')
 
 
 def gen_actions(state, disk=None):
@@ -177,31 +176,66 @@ def value_iteration(epsilon, states, swap_utility = False):
                 logging.info("For State {} moving to State {} is best, with utility {}".format(b[0].InitialState, b[0].FinalState, b[1]))
             return
 
-def policy_iteration(epsilon, states, swap_utility):
-    policy = [Policy(s, gen_actions(s)[random.randint(0,len(gen_actions(s))-1)]) for s in states ]
+
+class Policy:
+    def __init__(self, states):
+        self.policy = [[s, gen_actions(s)[-1]] for s in states ]
+
+    def update(self, state, action):
+        self.get_policy(state)[1] = action
+
+    def get_action(self, state):
+        return self.get_policy(state)[1]
+
+    def get_policy(self, state):
+        return [p for p in self.policy if p[0] == state][0]
+
+iterations = 0
+def policy_iteration(epsilon, states, policy=None):
+    global iterations
+    iterations+=1
+    policy = Policy(states) if policy is None else policy
     logging.debug("Initial Policy: {}".format(policy))
     leq_a, leq_b = [], []
     for s in states:
-        a = [p.Action for p in policy if p.State == s][0]  # there is always only one corresponding action in the policy
+        a = policy.get_action(s)
         logging.info("In {} do {}".format(s, a.FinalState))
         reward = r(a, s)
-        leq = "LEQ : {} + 0.9 * ( {} )".format(reward, ["{} * u({})".format(tr.Probability, get_state_id(states,tr.Action.FinalState)) for tr in t(a)])
+        leq = "LEQ : {} + 0.9 * ( {} )".format(reward, ["{} * u({})".format(tr.Probability, tr.Action.FinalState) for tr in t(a)])
         ids = {}
         for tr in t(a):
             ids[get_state_id(states, tr.Action.FinalState)] = tr.Probability
         part_leq_a = []
         for i in range(len(states)):
             if i in ids:
-                part_leq_a.append(0.9*ids[i])
+                if i == len(leq_b):
+                    part_leq_a.append(1.0)
+                elif i == get_state_id(states, a.FinalState):
+                    part_leq_a.append((-0.9 * ids[i]))
+                else:
+                    part_leq_a.append(-0.9*ids[i])
             else:
                 part_leq_a.append(0)
         leq_a.append(part_leq_a)
-        leq_b.append(-reward)
+        leq_b.append(reward)
         logging.debug(leq)
         logging.debug("\n"+str(np.array(leq_a)))
         logging.debug("\n"+str(np.array(leq_b)))
     utility = np.linalg.solve(np.array(leq_a), np.array(leq_b))
-    logging.info(utility)
+    logging.info("Current Utilities:\n"+str(utility))
+    for s in states:
+        state_id = get_state_id(states, s)
+        policy_action = policy.get_action(s)
+        other_actions = [a for a in gen_actions(s) if a != policy_action]
+        for a in other_actions:
+            other_utility = r(a, s) + 0.9 * sum([tr.Probability*utility[get_state_id(states, tr.Action.FinalState)] for tr in t(a)])
+            if (other_utility > utility[state_id]):
+                utility[state_id] = other_utility
+                policy.update(s, a)
+                policy_iteration(epsilon, states, policy)
+                return
+    else:
+        logging.info("Finished after {} iterations !".format(iterations))
 
 
 if __name__ == "__main__":
@@ -211,6 +245,6 @@ if __name__ == "__main__":
 
     swap_utility = True  # Used to debug vs hand-calculated results. Only updates utility after one iteration
     #value_iteration(0.000001, states, swap_utility)
-    policy_iteration(0.000001, states, swap_utility)
+    policy_iteration(0.000001, states)
 
 
