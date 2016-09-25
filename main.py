@@ -75,14 +75,17 @@ def t(a):
 
     :param a The Action that should be executed"""
     if a.InitialState == a.FinalState:
-        return([Transition(a, 1.0)])
+        return ([Transition(a, 1.0)])
     disk = get_disk(a)
     transitions = []
     actions = gen_actions(a.InitialState, disk)
     for g_a in actions:
-        if g_a.FinalState == a.FinalState: p = 0.9
-        elif g_a.FinalState == a.InitialState: p = 0.0
-        else: p = 0.1/(len(actions)-2)
+        if g_a.FinalState == a.FinalState:
+            p = 0.9
+        elif g_a.FinalState == a.InitialState:
+            p = 0.0
+        else:
+            p = 0.1 / (len(actions) - 2)
         transitions.append(Transition(g_a, p))
     return transitions
 
@@ -108,6 +111,8 @@ def r(a, s=None):
 
 
 best_utility = []
+
+
 def u(s, update=None):
     """Calculates or updates the current utility for a state.
     If no utility is present it is initialized to 0.
@@ -148,6 +153,7 @@ def get_id_of_state(s):
     else:
         raise Exception("State not in States.")
 
+
 def get_state_by_id(id):
     """Returns a State based on an id.
 
@@ -155,6 +161,7 @@ def get_state_by_id(id):
 
 
 iterations = 0
+
 
 def value_iteration(e):
     """Executes a value iteration.
@@ -172,20 +179,21 @@ def value_iteration(e):
                 ua_mapping[utility] = a
             best_u = max(ua_mapping, key=float)
             best_a = ua_mapping[best_u]
-            states_delta.append(abs(u(s)-best_u))
+            states_delta.append(abs(u(s) - best_u))
             states_best.append((best_a, best_u))
             u(s, best_u)
         if all([d < e for d in states_delta]):
             logging.info("Finished after {} iterations!".format(iterations))
             for b in states_best:
-                logging.debug("For State {} moving to State {} is best, with utility {}".format(b[0].InitialState, b[0].FinalState, b[1]))
+                logging.debug("For State {} moving to State {} is best, with utility {}".format(b[0].InitialState,
+                                                                                                b[0].FinalState, b[1]))
             iterations = 0
             return
 
 
 class Policy:
     def __init__(self, states):
-        self.policy = [[s, gen_actions(s)[-1]] for s in states ]
+        self.policy = [[s, gen_actions(s)[-1]] for s in states]
 
     def update(self, s, a):
         self.get_policy(s)[1] = a
@@ -218,7 +226,7 @@ def policy_iteration(e, p):
                 elif i == get_id_of_state(a.FinalState):
                     part_leq_a.append((-0.9 * ids[i]))
                 else:
-                    part_leq_a.append(-0.9*ids[i])
+                    part_leq_a.append(-0.9 * ids[i])
             else:
                 part_leq_a.append(0)
         leq_a.append(part_leq_a)
@@ -230,7 +238,8 @@ def policy_iteration(e, p):
         policy_action = p.get_action(s)
         other_actions = [a for a in gen_actions(s) if a != policy_action]
         for a in other_actions:
-            other_utility = r(a, s) + 0.9 * sum([tr.Probability*utility[get_id_of_state(tr.Action.FinalState)] for tr in t(a)])
+            other_utility = r(a, s) + 0.9 * sum(
+                [tr.Probability * utility[get_id_of_state(tr.Action.FinalState)] for tr in t(a)])
             if (other_utility > utility[state_id]):
                 utility[state_id] = other_utility
                 p.update(s, a)
@@ -242,15 +251,12 @@ def policy_iteration(e, p):
         iterations = 0
 
 
-
-states = [i for i in unique(itertools.permutations([[2,1],[],[]]))] + \
-             [i for i in unique(itertools.permutations([[2],[1],[]]))] + \
-             [i for i in unique(itertools.permutations([[1,2],[],[]]))]
+states = [i for i in unique(itertools.permutations([[2, 1], [], []]))] + \
+         [i for i in unique(itertools.permutations([[2], [1], []]))] + \
+         [i for i in unique(itertools.permutations([[1, 2], [], []]))]
 
 epsilon = 0.00001
 logging.info("Starting value iteration with an epsilon of {}".format(epsilon))
 value_iteration(epsilon)
 logging.info("Starting policy iteration with")
 policy_iteration(epsilon, Policy(states))
-
-
