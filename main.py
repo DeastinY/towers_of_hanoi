@@ -35,92 +35,101 @@ import logging
 import numpy as np
 from copy import deepcopy
 import itertools
-import random
 from collections import namedtuple
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 Action = namedtuple('Action', 'InitialState FinalState')
 Transition = namedtuple('Transition', 'Action Probability')
 
 
-def gen_actions(state, disk=None):
-    """Generates all possible actions (=resulting states) from a base state.
-    If disk is not None only action that move disk are returned."""
-    actions = [Action(state, state)]
-    if state[-1] == [2, 1]:
+def gen_actions(s, d=None):
+    """Generates all possible actions from a base state.
+
+    :param s The State
+    :param d The moved disk. If not None only action that move disk d are returned."""
+    actions = [Action(s, s)]
+    if s[-1] == [2, 1]:
         return actions
-    for idx_out, pin in enumerate(state):
-        for idx, move_to in enumerate(state):
-            if pin != move_to and len(pin) != 0 and (disk is None or pin[-1] == disk):
-                new_state = deepcopy(state)
+    for idx_out, pin in enumerate(s):
+        for idx, move_to in enumerate(s):
+            if pin != move_to and len(pin) != 0 and (d is None or pin[-1] == d):
+                new_state = deepcopy(s)
                 del new_state[idx_out][-1]
                 new_state[idx].append(pin[-1])
-                actions.append(Action(state, new_state))
+                actions.append(Action(s, new_state))
     return actions
 
 
-def get_disk(action):
-    """return the disk that is moved from in the transition from state to action."""
-    for i in range(len(action.InitialState)):
-        if action.InitialState[i] != action.FinalState[i]:
-            d = set(action.InitialState[i]).symmetric_difference(set(action.FinalState[i]))
-            return d.pop()
+def get_disk(a):
+    """Return the disk that is moved from in the transition from state to action.
+
+    :param a The Action"""
+    for i in range(len(a.InitialState)):
+        if a.InitialState[i] != a.FinalState[i]:
+            return set(a.InitialState[i]).symmetric_difference(set(a.FinalState[i])).pop()
 
 
-def t(action):
+def t(a):
     """Returns the possible transitions trying to execute an action on a state.
-    The desired state s' has a 90% success rate. Every different state has an equal probability."""
-    if action.InitialState == action.FinalState:
-        return([Transition(action, 1.0)])
-    disk = get_disk(action)
+    The desired state s' has a 90% success rate. Every different state has an equal probability.
+
+    :param a The Action that should be executed"""
+    if a.InitialState == a.FinalState:
+        return([Transition(a, 1.0)])
+    disk = get_disk(a)
     transitions = []
-    actions = gen_actions(action.InitialState, disk)
+    actions = gen_actions(a.InitialState, disk)
     for g_a in actions:
-        if g_a.FinalState == action.FinalState: p = 0.9
-        elif g_a.FinalState == action.InitialState: p = 0.0
+        if g_a.FinalState == a.FinalState: p = 0.9
+        elif g_a.FinalState == a.InitialState: p = 0.0
         else: p = 0.1/(len(actions)-2)
         transitions.append(Transition(g_a, p))
     return transitions
 
 
-def r(action, state=None):
-    if not state is None:
-        transitions = t(action)
+def r(a, s=None):
+    """Returns the reward for reaching the FinalState of Action a.
+
+    :param a The Action
+    :param s The State. If not None the sum of all rewards and their probabilities is returned.
+    """
+    if not s is None:
+        transitions = t(a)
         return sum([tr.Probability * r(tr.Action) for tr in transitions])
     else:
-        for pin in action.FinalState:
+        for pin in a.FinalState:
             if not all(pin[i] >= pin[i + 1] for i in range(len(pin) - 1)):
                 return -10
         else:
-            if action.FinalState[-1] == [2, 1]:  # bad hardcoded win condition, fix later (adjust field size)
-                return 100 if not action.InitialState == action.FinalState else 0
+            if a.FinalState[-1] == [2, 1]:  # bad hardcoded win condition
+                return 100 if not a.InitialState == a.FinalState else 0
             else:
                 return -1
 
 
-def u(state, swap_utility, updated_utility=None):
-    """Calculates or updates the current utility for a state. If no utility is present it is initialized to 0."""
+best_utility = []
+def u(s, update=None):
+    """Calculates or updates the current utility for a state.
+    If no utility is present it is initialized to 0.
+
+    :param s The State
+    :param update If not None the utility for s is updated to update."""
     global best_utility
     for idx, us in enumerate(best_utility):
-        if state in us:
-            if swap_utility:
-                best_utility_swap[idx][1] = updated_utility if updated_utility is not None else best_utility_swap[idx][1]
-            else:
-                us[1] = updated_utility if updated_utility is not None else us[1]
+        if s in us:
+            us[1] = update if update is not None else us[1]
             return us[1]
     else:
         initial_utility = 0
-        best_utility.append([state, initial_utility])
-        best_utility_swap.append([state, initial_utility])
+        best_utility.append([s, initial_utility])
         return initial_utility
 
 
-best_utility = []
-best_utility_swap = []
-
 def unique(iterable):
     """Used to adjust the itertool permutations method to our needs.
-    http://stackoverflow.com/questions/6534430/why-does-pythons-itertools-permutations-contain-duplicates-when-the-original"""
+    http://stackoverflow.com/questions/6534430/why-does-pythons-itertools-permutations-contain-duplicates-when-the-original
+
+    :param iterable The iterable."""
     seen = set()
     for i in iterable:
         if str(i) in seen:
@@ -129,51 +138,48 @@ def unique(iterable):
         yield i
 
 
-def get_state_id(states, x):
-    for i, s in enumerate(states):
-        if s == x:
+def get_id_of_state(s):
+    """Returns the id of a State.
+
+    :param s The State."""
+    for i, os in enumerate(states):
+        if os == s:
             return i
     else:
         raise Exception("State not in States.")
 
+def get_state_by_id(id):
+    """Returns a State based on an id.
 
-def value_iteration(epsilon, states, swap_utility = False):
-    iterations = 0
+    :param id The id."""
+
+
+iterations = 0
+
+def value_iteration(e):
+    """Executes a value iteration.
+
+    :param e The epsilon value. Search is halted when the difference is smaller than e."""
     while True:
+        global iterations
         iterations += 1
         states_delta, states_best = [], []
         for s in states:
-            logging.warning("State : {}".format(s))
-            possible_actions = gen_actions(s)
-            if len(possible_actions) == 0:
-                continue  # skip terminal states
-            u_a_mapping = {}
-            for a in possible_actions:
-                logging.debug("Action : {}".format(a))
+            ua_mapping = {}
+            for a in gen_actions(s):
                 reward = r(a, s)
-                [logging.debug("To {} Reward : {} \t Probability : {}".format(tr.Action.FinalState, r(tr.Action), tr.Probability)) for tr in t(a)]
-                utility = reward + 0.9 * sum([tr.Probability * u(tr.Action.FinalState, swap_utility) for tr in t(a)])
-                logging.debug("Reward : {} \t Utility : {}".format(reward, utility))
-                u_a_mapping[utility] = a
-
-            best_u = max(u_a_mapping, key=float)
-            best_a = u_a_mapping[best_u]
-            u(s, swap_utility, best_u)
-            states_delta.append(abs(u(s, swap_utility)-best_u))
+                utility = reward + 0.9 * sum([tr.Probability * u(tr.Action.FinalState) for tr in t(a)])
+                ua_mapping[utility] = a
+            best_u = max(ua_mapping, key=float)
+            best_a = ua_mapping[best_u]
+            states_delta.append(abs(u(s)-best_u))
             states_best.append((best_a, best_u))
-            logging.debug("Best Utility : {} Action : {} ".format(best_u, best_a))
-
-        global best_utility
-        global best_utility_swap
-        if swap_utility:
-            best_utility = []
-            for i in range(len(best_utility_swap)):
-                best_utility.append(deepcopy(best_utility_swap[i]))
-
-        if all([d < epsilon for d in states_delta]):
+            u(s, best_u)
+        if all([d < e for d in states_delta]):
             logging.info("Finished after {} iterations!".format(iterations))
             for b in states_best:
-                logging.info("For State {} moving to State {} is best, with utility {}".format(b[0].InitialState, b[0].FinalState, b[1]))
+                logging.debug("For State {} moving to State {} is best, with utility {}".format(b[0].InitialState, b[0].FinalState, b[1]))
+            iterations = 0
             return
 
 
@@ -181,36 +187,35 @@ class Policy:
     def __init__(self, states):
         self.policy = [[s, gen_actions(s)[-1]] for s in states ]
 
-    def update(self, state, action):
-        self.get_policy(state)[1] = action
+    def update(self, s, a):
+        self.get_policy(s)[1] = a
 
-    def get_action(self, state):
-        return self.get_policy(state)[1]
+    def get_action(self, s):
+        return self.get_policy(s)[1]
 
-    def get_policy(self, state):
-        return [p for p in self.policy if p[0] == state][0]
+    def get_policy(self, s):
+        return [p for p in self.policy if p[0] == s][0]
 
-iterations = 0
-def policy_iteration(epsilon, states, policy=None):
+
+def policy_iteration(e, p):
+    """Executes a policy iteration to solve the MDP.
+
+    :param e The epsilon value. Search is halted when the difference is smaller than e.
+    :param p The current policy. Iteratively improved."""
     global iterations
-    iterations+=1
-    policy = Policy(states) if policy is None else policy
-    logging.debug("Initial Policy: {}".format(policy))
+    iterations += 1
     leq_a, leq_b = [], []
     for s in states:
-        a = policy.get_action(s)
-        logging.info("In {} do {}".format(s, a.FinalState))
+        ids, part_leq_a = {}, []
+        a = p.get_action(s)
         reward = r(a, s)
-        leq = "LEQ : {} + 0.9 * ( {} )".format(reward, ["{} * u({})".format(tr.Probability, tr.Action.FinalState) for tr in t(a)])
-        ids = {}
         for tr in t(a):
-            ids[get_state_id(states, tr.Action.FinalState)] = tr.Probability
-        part_leq_a = []
+            ids[get_id_of_state(tr.Action.FinalState)] = tr.Probability
         for i in range(len(states)):
             if i in ids:
                 if i == len(leq_b):
                     part_leq_a.append(1.0)
-                elif i == get_state_id(states, a.FinalState):
+                elif i == get_id_of_state(a.FinalState):
                     part_leq_a.append((-0.9 * ids[i]))
                 else:
                     part_leq_a.append(-0.9*ids[i])
@@ -218,33 +223,32 @@ def policy_iteration(epsilon, states, policy=None):
                 part_leq_a.append(0)
         leq_a.append(part_leq_a)
         leq_b.append(reward)
-        logging.debug(leq)
-        logging.debug("\n"+str(np.array(leq_a)))
-        logging.debug("\n"+str(np.array(leq_b)))
     utility = np.linalg.solve(np.array(leq_a), np.array(leq_b))
-    logging.info("Current Utilities:\n"+str(utility))
     for s in states:
-        state_id = get_state_id(states, s)
-        policy_action = policy.get_action(s)
+        state_id = get_id_of_state(s)
+        policy_action = p.get_action(s)
         other_actions = [a for a in gen_actions(s) if a != policy_action]
         for a in other_actions:
-            other_utility = r(a, s) + 0.9 * sum([tr.Probability*utility[get_state_id(states, tr.Action.FinalState)] for tr in t(a)])
+            other_utility = r(a, s) + 0.9 * sum([tr.Probability*utility[get_id_of_state(tr.Action.FinalState)] for tr in t(a)])
             if (other_utility > utility[state_id]):
                 utility[state_id] = other_utility
-                policy.update(s, a)
-                policy_iteration(epsilon, states, policy)
+                p.update(s, a)
+                policy_iteration(e, p)
                 return
     else:
         logging.info("Finished after {} iterations !".format(iterations))
+        iterations = 0
 
 
-if __name__ == "__main__":
-    states = [i for i in unique(itertools.permutations([[2,1],[],[]]))] + \
+
+states = [i for i in unique(itertools.permutations([[2,1],[],[]]))] + \
              [i for i in unique(itertools.permutations([[2],[1],[]]))] + \
              [i for i in unique(itertools.permutations([[1,2],[],[]]))]
 
-    swap_utility = True  # Used to debug vs hand-calculated results. Only updates utility after one iteration
-    #value_iteration(0.000001, states, swap_utility)
-    policy_iteration(0.000001, states)
+epsilon = 0.1
+logging.info("Starting {} iteration with an epsilon of {}".format("value", epsilon))
+value_iteration(epsilon)
+logging.info("Starting {} iteration with an epsilon of {}".format("policy", epsilon))
+policy_iteration(epsilon, Policy(states))
 
 
