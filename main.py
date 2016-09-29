@@ -244,7 +244,7 @@ def policy_iteration(e, p):
         for p in p.policy:
             logging.debug("For State {} moving to State {} is best, with utility {}".format(p[0], p[1].FinalState,
                                                                                             utility[get_id_of_state(
-                                                                                                p[1].FinalState)]))
+                                                                                                p[0])]))
         logging.info("Finished after {} iterations !".format(iterations))
         iterations = 0
 
@@ -256,5 +256,5 @@ states = [i for i in unique(itertools.permutations([[2, 1], [], []]))] + \
 epsilon = 0.00001
 logging.info("Starting value iteration with an epsilon of {}".format(epsilon))
 value_iteration(epsilon)
-logging.info("Starting policy iteration with")
+logging.info("Starting policy iteration")
 policy_iteration(epsilon, Policy())
