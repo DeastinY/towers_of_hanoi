@@ -32,14 +32,17 @@ Implementation:
 """
 
 import logging
+import random
 import numpy as np
 from copy import deepcopy
 import itertools
 from collections import namedtuple
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 Action = namedtuple('Action', 'InitialState FinalState')
 Transition = namedtuple('Transition', 'Action Probability')
+
+np.set_printoptions(edgeitems=3,infstr='inf', linewidth=300, nanstr='nan', precision=8, suppress=False, threshold=1000, formatter=None)
 
 
 def gen_actions(s, d=None):
@@ -143,7 +146,7 @@ def unique(iterable):
         yield i
 
 
-def get_id_of_state(s):
+def id(s):
     """Returns the id of a State.
 
     :param s The State."""
@@ -179,7 +182,7 @@ def value_iteration(e):
         if all([d < e for d in states_delta]):
             logging.info("Finished after {} iterations!".format(iterations))
             for b in states_best:
-                logging.debug("For State {} moving to State {} is best, with utility {}".format(b[0].InitialState,
+                logging.info("For State {} moving to State {} is best, with utility {}".format(b[0].InitialState,
                                                                                                 b[0].FinalState, b[1]))
             iterations = 0
             return
@@ -212,12 +215,12 @@ def policy_iteration(e, p):
         a = p.get_action(s)
         reward = r(a, s)
         for tr in t(a):
-            ids[get_id_of_state(tr.Action.FinalState)] = tr.Probability
+            ids[id(tr.Action.FinalState)] = tr.Probability
         for i in range(len(states)):
             if i in ids:
                 if i == len(leq_b):
                     part_leq_a.append(1.0)
-                elif i == get_id_of_state(a.FinalState):
+                elif i == id(a.FinalState):
                     part_leq_a.append((-0.9 * ids[i]))
                 else:
                     part_leq_a.append(-0.9 * ids[i])
@@ -228,12 +231,12 @@ def policy_iteration(e, p):
     utility = np.linalg.solve(np.array(leq_a), np.array(leq_b))
     updated_policy = False
     for s in states:
-        state_id = get_id_of_state(s)
+        state_id = id(s)
         policy_action = p.get_action(s)
         other_actions = [a for a in gen_actions(s) if a != policy_action]
         for a in other_actions:
             other_utility = r(a, s) + 0.9 * sum(
-                [tr.Probability * utility[get_id_of_state(tr.Action.FinalState)] for tr in t(a)])
+                [tr.Probability * utility[id(tr.Action.FinalState)] for tr in t(a)])
             if other_utility > utility[state_id]:
                 utility[state_id] = other_utility
                 p.update(s, a)
@@ -242,11 +245,47 @@ def policy_iteration(e, p):
         policy_iteration(e, p)
     else:
         for p in p.policy:
-            logging.debug("For State {} moving to State {} is best, with utility {}".format(p[0], p[1].FinalState,
-                                                                                            utility[get_id_of_state(
+            logging.info("For State {} moving to State {} is best, with utility {}".format(p[0], p[1].FinalState,
+                                                                                            utility[id(
                                                                                                 p[0])]))
         logging.info("Finished after {} iterations !".format(iterations))
         iterations = 0
+
+
+tries = {}
+
+def lr(a):
+    global tries
+    return 1
+    ids = (id(a.FinalState), id(a.FinalState))
+    if not "{}{}".format(*ids) in tries:
+        tries["{}{}".format(*ids)] = 1
+    else:
+        tries["{}{}".format(*ids)] += 1
+    logging.info(1./tries["{}{}".format(*ids)])
+    return 1./tries["{}{}".format(*ids)]
+
+
+def qlearning():
+    qvalues = qlearningiter()
+    for i in range(100):
+        qvalues = qlearningiter(qvalues)
+    max = np.max(qvalues, axis=1)
+    for i, s in enumerate(states):
+        logging.info("For State {} moving to State {} is best, with utility {}".format(s, None, max[i]))
+
+def qlearningiter(qvalues = None, sid = None):
+    qvalues = np.zeros((len(states),len(states))) if qvalues is None else qvalues
+    sid = random.randint(0,len(states)-1) if sid is None else sid
+    actions = gen_actions(states[sid])
+    if len(actions) == 1:  # absorbing state
+        return qvalues
+    a = random.choice(actions)
+    oldq = qvalues[sid, id(a.InitialState)]
+    maxq = max([qvalues[id(act.InitialState), id(act.FinalState)] for act in gen_actions(a.FinalState)])
+    q = oldq + lr(a) * (r(a, states[sid]) + 0.9 * maxq - oldq)
+    qvalues[id(a.InitialState), id(a.FinalState)] = q
+    return  qlearningiter(qvalues, id(a.FinalState))
 
 
 states = [i for i in unique(itertools.permutations([[2, 1], [], []]))] + \
@@ -254,7 +293,9 @@ states = [i for i in unique(itertools.permutations([[2, 1], [], []]))] + \
          [i for i in unique(itertools.permutations([[1, 2], [], []]))]
 
 epsilon = 0.00001
-logging.info("Starting value iteration with an epsilon of {}".format(epsilon))
-value_iteration(epsilon)
+#logging.info("Starting value iteration with an epsilon of {}".format(epsilon))
+#value_iteration(epsilon)
 logging.info("Starting policy iteration")
 policy_iteration(epsilon, Policy())
+logging.info("Starting qlearning")
+qlearning()
