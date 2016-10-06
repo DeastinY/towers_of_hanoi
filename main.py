@@ -31,6 +31,7 @@ Implementation:
         1. Actions described as an initial and final state
 """
 
+import sys
 import logging
 import random
 import numpy as np
@@ -254,22 +255,14 @@ def policy_iteration(e, p):
 
 tries = {}
 
-def lr(a):
-    global tries
-    return 1
-    ids = (id(a.FinalState), id(a.FinalState))
-    if not "{}{}".format(*ids) in tries:
-        tries["{}{}".format(*ids)] = 1
-    else:
-        tries["{}{}".format(*ids)] += 1
-    logging.info(1./tries["{}{}".format(*ids)])
-    return 1./tries["{}{}".format(*ids)]
-
 
 def qlearning():
     qvalues = qlearningiter()
-    for i in range(100):
+    for i in range(1000):
+        if i % 100 == 0:
+            logging.info("{}% done".format(i/10))
         qvalues = qlearningiter(qvalues)
+    logging.info(qvalues)
     max = np.max(qvalues, axis=1)
     for i, s in enumerate(states):
         logging.info("For State {} moving to State {} is best, with utility {}".format(s, None, max[i]))
@@ -281,9 +274,11 @@ def qlearningiter(qvalues = None, sid = None):
     if len(actions) == 1:  # absorbing state
         return qvalues
     a = random.choice(actions)
-    oldq = qvalues[sid, id(a.InitialState)]
-    maxq = max([qvalues[id(act.InitialState), id(act.FinalState)] for act in gen_actions(a.FinalState)])
-    q = oldq + lr(a) * (r(a, states[sid]) + 0.9 * maxq - oldq)
+    maxq = []
+    for act in gen_actions(a.FinalState):
+        maxq.append(sum(tr.Probability * qvalues[id(tr.Action.InitialState), id(tr.Action.FinalState)] for tr in t(act)))
+    maxq = max(maxq)
+    q = r(a) + ( 0.9 * maxq )
     qvalues[id(a.InitialState), id(a.FinalState)] = q
     return  qlearningiter(qvalues, id(a.FinalState))
 
@@ -293,8 +288,8 @@ states = [i for i in unique(itertools.permutations([[2, 1], [], []]))] + \
          [i for i in unique(itertools.permutations([[1, 2], [], []]))]
 
 epsilon = 0.00001
-#logging.info("Starting value iteration with an epsilon of {}".format(epsilon))
-#value_iteration(epsilon)
+logging.info("Starting value iteration with an epsilon of {}".format(epsilon))
+value_iteration(epsilon)
 logging.info("Starting policy iteration")
 policy_iteration(epsilon, Policy())
 logging.info("Starting qlearning")
