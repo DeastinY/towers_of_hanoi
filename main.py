@@ -260,12 +260,13 @@ def qlearning():
     qvalues = qlearningiter()
     for i in range(100):
         if i % 10 == 0:
-            logging.info("{}% done".format(i))
+            logging.debug("{}% done".format(i))
         qvalues = qlearningiter(qvalues)
-    logging.info(qvalues)
     max = np.max(qvalues, axis=1)
+    maxid = qvalues.argmax(axis=1)
+    maxid[2] = 2  # ugly hack to fix value for absorbing state. row is (0, 0, .... , 0) so max returns first 0
     for i, s in enumerate(states):
-        logging.info("For State {} moving to State {} is best, with utility {}".format(s, None, max[i]))
+        logging.info("For State {} moving to State {} is best, with utility {}".format(s, states[maxid[i]], max[i]))
 
 def qlearningiter(qvalues = None, sid = None):
     qvalues = np.zeros((len(states),len(states))) if qvalues is None else qvalues
@@ -274,15 +275,12 @@ def qlearningiter(qvalues = None, sid = None):
     if len(actions) == 1:  # absorbing state
         return qvalues
     a = random.choice(actions)
-    new_state = states[np.random.choice([id(tr.Action.FinalState) for tr in t(a)], p=[tr.Probability for tr in t(a)])]
-    maxq = []
-    for act in gen_actions(new_state):
-        maxq.append(sum(tr.Probability * qvalues[id(tr.Action.InitialState), id(tr.Action.FinalState)] for tr in t(act)))
-    maxq = max(maxq)
-    #maxq = max([qvalues[id(act.InitialState), id(act.FinalState)] for act in gen_actions(new_state)])
-    q = r(Action(a.InitialState, new_state)) + ( 0.9 * maxq )
-    qvalues[sid, id(new_state)] = q
-    return  qlearningiter(qvalues, id(new_state))
+    afst = states[np.random.choice([id(tr.Action.FinalState) for tr in t(a)], p=[tr.Probability for tr in t(a)])]
+    a = Action(a.InitialState, afst)
+    maxq = max([qvalues[id(act.InitialState),id(act.FinalState)] for act in gen_actions(a.FinalState)])
+    q = r(a) + ( 0.9 * maxq )
+    qvalues[sid, id(a.FinalState)] = q
+    return  qlearningiter(qvalues, id(a.FinalState))
 
 
 states = [i for i in unique(itertools.permutations([[2, 1], [], []]))] + \
